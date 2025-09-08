@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Senku</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <!-- three.js + tools -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/EXRLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.9/build/dat.gui.min.js"></script>
+
+  <script>
+    // ตัว renderer
+    const canvasRenderer = new THREE.WebGLRenderer({ antialias: true });
+    canvasRenderer.setSize(window.innerWidth, window.innerHeight);
+    canvasRenderer.shadowMap.enabled = true;
+    canvasRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(canvasRenderer.domElement);
+
+    // scene + camera
+    const mainScene = new THREE.Scene();
+    const mainCam = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 1000);
+    mainCam.position.set(0, 2, 5);
+
+    const orbitCtrl = new THREE.OrbitControls(mainCam, canvasRenderer.domElement);
+
+    // แสง
+    const ambient = new THREE.AmbientLight(0x808080, 0.3);
+    mainScene.add(ambient);
+
+    const sunLight = new THREE.DirectionalLight(0xffeedd, 0.5);
+    sunLight.castShadow = true;
+    sunLight.position.set(10, 5, 10);
+    mainScene.add(sunLight);
+
+    // พื้นผิว Environment
+    const envGen = new THREE.PMREMGenerator(canvasRenderer);
+    envGen.compileEquirectangularShader();
+
+    new THREE.EXRLoader().load(
+      "https://paulthebeatles.github.io/Senku/horn-koppe_spring_1k.exr",
+      tex => {
+        const envTex = envGen.fromEquirectangular(tex).texture;
+        mainScene.environment = envTex;
+        mainScene.background = envTex;
+        tex.dispose();
+        envGen.dispose();
+      }
+    );
+
+    // GUI
+    const guiPanel = new dat.GUI({ width: 300 });
+    // guiPanel.domElement.style.position = "absolute";
+    // guiPanel.domElement.style.bottom = "10px";
+    // guiPanel.domElement.style.right = "10px";
+
+    const lightUI = guiPanel.addFolder("Light XYZ");
+    lightUI.add(sunLight.position, "x", -20, 20, 0.1);
+    lightUI.add(sunLight.position, "y", -20, 20, 0.1);
+    lightUI.add(sunLight.position, "z", -20, 20, 0.1);
+    lightUI.open();
+
+    // โหลดโมเดล Senku
+    const modelLoader = new THREE.GLTFLoader();
+    modelLoader.load("https://paulthebeatles.github.io/Senku/senku_dr_stone_3d_model%20(1).glb", gltf => {
+      gltf.scene.traverse(obj => {
+        if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; }
+      });
+      mainScene.add(gltf.scene);
+    });
+
+    // โหลดโมเดล Stonehenge
+    const stoneLoader = new THREE.GLTFLoader();
+    stoneLoader.load("https://paulthebeatles.github.io/Senku/stonehenge_-_low_poly.glb", gltf => {
+      const rock = gltf.scene;
+      rock.position.set(0.8, 0, 0.5);
+      rock.scale.set(0.0004, 0.0004, 0.0004);
+      rock.traverse(obj => {
+        if (obj.isMesh) { obj.castShadow = true; obj.receiveShadow = true; }
+      });
+      mainScene.add(rock);
+    });
+
+    // พื้น
+    const groundTex = new THREE.TextureLoader().load("https://paulthebeatles.github.io/Senku/rocky_terrain_02_diff_1k.jpg", t => {
+      t.wrapS = THREE.RepeatWrapping;
+      t.wrapT = THREE.RepeatWrapping;
+    });
+
+    const groundMat = new THREE.MeshStandardMaterial({ map: groundTex });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    mainScene.add(ground);
+
+    // วน loop render
+    (function loop() {
+      canvasRenderer.render(mainScene, mainCam);
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
